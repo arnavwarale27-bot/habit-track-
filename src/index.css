@@ -1,0 +1,103 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --color-brand: #6366f1;
+  --color-brand-light: #818cf8;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+}
+
+* {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  background: #f8faff;
+  color: #1e293b;
+}
+
+body.dark {
+  background: #0f172a;
+  color: #f1f5f9;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+body.dark ::-webkit-scrollbar-thumb { background: #334155; }
+
+/* Smooth everything */
+*, *::before, *::after { transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease; box-sizing: border-box; }
+
+/* Checkbox custom */
+.habit-check {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  background: white;
+}
+.habit-check:hover { border-color: #6366f1; }
+.habit-check:checked {
+  background: #6366f1;
+  border-color: #6366f1;
+}
+.habit-check:checked::after {
+  content: '✓';
+  position: absolute;
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Star */
+.star-btn { background: none; border: none; cursor: pointer; padding: 2px; font-size: 22px; line-height: 1; transition: transform 0.15s ease; }
+.star-btn:hover { transform: scale(1.2); }
+
+/* Card hover */
+.card-hover { transition: box-shadow 0.25s ease, transform 0.25s ease; }
+.card-hover:hover { box-shadow: 0 10px 40px rgba(99, 102, 241, 0.12); transform: translateY(-2px); }
+
+/* Slide in animation */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.slide-up { animation: slideUp 0.4s ease forwards; }
+
+/* Expand animation */
+@keyframes expandDown {
+  from { max-height: 0; opacity: 0; }
+  to { max-height: 200px; opacity: 1; }
+}
+.expand-down { animation: expandDown 0.3s ease forwards; overflow: hidden; }
+
+/* Progress bar gradient */
+.progress-gradient { background: linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa); }
+.progress-green { background: linear-gradient(90deg, #22c55e, #16a34a); }
+
+/* Pulse dot */
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+.pulse-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: pulse-ring 1.5s infinite;
+}
