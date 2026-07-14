@@ -137,10 +137,12 @@ export default function App() {
     const { advanced } = checkAndAdvanceDay(savedTasks || INITIAL_TASKS, todayStr);
     if (advanced) {
       // New day — reset tasks but keep streaks
-      return INITIAL_TASKS.map((init, i) => ({
+      const reset = INITIAL_TASKS.map((init, i) => ({
         ...init,
         streak: savedTasks?.[i]?.streak || 0,
       }));
+      localStorage.setItem('hf_tasks_v3', JSON.stringify(reset));
+      return reset;
     }
     return savedTasks || INITIAL_TASKS;
   });
@@ -175,14 +177,20 @@ export default function App() {
       const cur = getTodayDate();
       setToday(prev => {
         if (prev !== cur) {
-          // Day has changed! Trigger check and reset tasks
-          const { advanced } = checkAndAdvanceDay(tasks, cur);
-          if (advanced) {
-            setTasksRaw(prevTasks => INITIAL_TASKS.map((init, i) => ({
-              ...init,
-              streak: prevTasks?.[i]?.streak || 0,
-            })));
-          }
+          setTasksRaw(prevTasks => {
+            const { advanced } = checkAndAdvanceDay(prevTasks, cur);
+            if (advanced) {
+              const reset = INITIAL_TASKS.map((init, i) => ({
+                ...init,
+                streak: prevTasks?.[i]?.streak || 0,
+              }));
+              localStorage.setItem('hf_tasks_v3', JSON.stringify(reset));
+              saveToday(reset, cur);
+              setHistory(loadHistory());
+              return reset;
+            }
+            return prevTasks;
+          });
           return cur;
         }
         return prev;
@@ -224,14 +232,14 @@ export default function App() {
           pts = t.basePoints;
           if (t.id === 'upsc') pts += Math.min(Number(t.inputValue || 0), 5);
           if (t.id === 'tech') pts += (t.stars || 0);
-          if (t.id === 'earning' && t.inputValue) {
-            const earned = Number(t.inputValue);
-            setGlobalEarnings(e => {
-              const next = e + earned;
-              localStorage.setItem('hf_earnings', next);
-              return next;
-            });
-          }
+        }
+        if (t.id === 'earning') {
+          const earned = Number(t.inputValue || 0);
+          setGlobalEarnings(e => {
+            const next = completing ? (e + earned) : Math.max(0, e - earned);
+            localStorage.setItem('hf_earnings', next);
+            return next;
+          });
         }
         return {
           ...t,
@@ -261,7 +269,18 @@ export default function App() {
     setTasks(prev => prev.map(t => {
       if (t.id !== id) return t;
       let pts = t.completed ? t.basePoints : 0;
-      if (t.completed && t.id === 'upsc') pts += Math.min(Number(val || 0), 5);
+      if (t.completed && t.id === 'upsc') {
+        pts += Math.min(Number(val || 0), 5);
+      }
+      if (t.completed && t.id === 'earning') {
+        const oldVal = Number(t.inputValue || 0);
+        const newVal = Number(val || 0);
+        setGlobalEarnings(e => {
+          const next = e - oldVal + newVal;
+          localStorage.setItem('hf_earnings', next);
+          return next;
+        });
+      }
       return { ...t, inputValue: val, pointsEarned: Math.min(pts, t.maxPoints) };
     }));
   }, [setTasks]);
