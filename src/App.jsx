@@ -7,7 +7,7 @@ import { YearCalendar } from './components/YearCalendar';
 import { TodayPage } from './pages/TodayPage';
 import { INITIAL_TASKS } from './data/tasks';
 import {
-  TODAY, checkAndAdvanceDay, loadHistory, saveToday, set
+  getTodayDate, checkAndAdvanceDay, loadHistory, saveToday, set
 } from './data/storage';
 
 function SettingsPage({ dark, onToggleDark, superStreak, setSuperStreak, globalEarnings, setGlobalEarnings, onClearData }) {
@@ -121,6 +121,7 @@ function SettingsPage({ dark, onToggleDark, superStreak, setSuperStreak, globalE
 export default function App() {
   const [dark, setDark] = useState(() => localStorage.getItem('hf_dark') === 'true');
   const [active, setActive] = useState('today');
+  const [today, setToday] = useState(() => getTodayDate());
 
   // Load tasks from storage — but check if day has advanced first
   const [tasks, setTasksRaw] = useState(() => {
@@ -132,7 +133,8 @@ export default function App() {
     })();
 
     // Check if we're on a new day
-    const { advanced } = checkAndAdvanceDay(savedTasks || INITIAL_TASKS);
+    const todayStr = getTodayDate();
+    const { advanced } = checkAndAdvanceDay(savedTasks || INITIAL_TASKS, todayStr);
     if (advanced) {
       // New day — reset tasks but keep streaks
       return INITIAL_TASKS.map((init, i) => ({
@@ -160,11 +162,49 @@ export default function App() {
     setTasksRaw(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       localStorage.setItem('hf_tasks_v3', JSON.stringify(next));
-      saveToday(next); // auto-save today's data to history
+      const curToday = getTodayDate();
+      saveToday(next, curToday); // auto-save today's data to history
       setHistory(loadHistory()); // refresh history
       return next;
     });
   }, []);
+
+  // Listen to tab visibility and focus to update date, and set interval
+  useEffect(() => {
+    const updateToday = () => {
+      const cur = getTodayDate();
+      setToday(prev => {
+        if (prev !== cur) {
+          // Day has changed! Trigger check and reset tasks
+          const { advanced } = checkAndAdvanceDay(tasks, cur);
+          if (advanced) {
+            setTasksRaw(prevTasks => INITIAL_TASKS.map((init, i) => ({
+              ...init,
+              streak: prevTasks?.[i]?.streak || 0,
+            })));
+          }
+          return cur;
+        }
+        return prev;
+      });
+    };
+
+    // Run once
+    updateToday();
+
+    // Listeners
+    window.addEventListener('focus', updateToday);
+    document.addEventListener('visibilitychange', updateToday);
+
+    // Check every 30 seconds
+    const interval = setInterval(updateToday, 30000);
+
+    return () => {
+      window.removeEventListener('focus', updateToday);
+      document.removeEventListener('visibilitychange', updateToday);
+      clearInterval(interval);
+    };
+  }, [tasks]);
 
   // Theme
   useEffect(() => {
@@ -283,10 +323,11 @@ export default function App() {
             globalEarnings={globalEarnings}
             superStreak={superStreak}
             dark={dark}
+            today={today}
           />
         )}
         {active === 'analytics' && <Analytics history={history} dark={dark} />}
-        {active === 'inspiration' && <Inspiration dark={dark} globalEarnings={globalEarnings} />}
+        {active === 'inspiration' && <Inspiration dark={dark} globalEarnings={globalEarnings} today={today} />}
         {active === 'settings' && (
           <SettingsPage
             dark={dark}
@@ -317,7 +358,7 @@ export default function App() {
             Today → Next year · Hover a day for details
           </p>
         </div>
-        <YearCalendar history={history} dark={dark} />
+        <YearCalendar history={history} dark={dark} today={today} />
 
         {/* Monthly summary */}
         <div style={{

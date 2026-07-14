@@ -28,7 +28,7 @@ function StatCard({ icon: Icon, label, value, sub, color, bg, dark }) {
   );
 }
 
-export function TodayPage({ tasks, onToggle, onUpdateInput, onUpdateStars, globalEarnings, superStreak, dark }) {
+export function TodayPage({ tasks, onToggle, onUpdateInput, onUpdateStars, globalEarnings, superStreak, dark, today }) {
   const totalPoints = useMemo(() => tasks.reduce((s, t) => s + t.pointsEarned, 0), [tasks]);
   const completedCount = tasks.filter(t => t.completed).length;
   const MILESTONE = 200000;
@@ -37,7 +37,7 @@ export function TodayPage({ tasks, onToggle, onUpdateInput, onUpdateStars, globa
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
 
-  const dateStr = new Date().toLocaleDateString('en-IN', {
+  const dateStr = new Date(today + 'T00:00:00').toLocaleDateString('en-IN', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
   });
 

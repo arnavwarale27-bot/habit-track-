@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TODAY, YEAR_END } from '../data/storage';
+import { getYearEndDate } from '../data/storage';
 import { RefreshCw, Heart, Target } from 'lucide-react';
 
 const QUOTES = [
@@ -32,15 +32,16 @@ const GOALS = [
   { emoji: '⚡', label: 'Ship 1 SaaS product', type: 'milestone' },
 ];
 
-export function Inspiration({ dark, globalEarnings }) {
-  const today = new Date(TODAY + 'T00:00:00');
-  const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 86400000);
+export function Inspiration({ dark, globalEarnings, today }) {
+  const todayObj = new Date(today + 'T00:00:00');
+  const dayOfYear = Math.floor((todayObj - new Date(todayObj.getFullYear(), 0, 0)) / 86400000);
   const quoteIdx = dayOfYear % QUOTES.length;
   const [affIdx, setAffIdx] = useState(0);
 
   // Days remaining to year end
-  const yearEnd = new Date(YEAR_END + 'T00:00:00');
-  const daysLeft = Math.ceil((yearEnd - today) / 86400000);
+  const yearEndDate = getYearEndDate();
+  const yearEnd = new Date(yearEndDate + 'T00:00:00');
+  const daysLeft = Math.ceil((yearEnd - todayObj) / 86400000);
 
   const cardBase = {
     background: dark ? '#1e293b' : '#ffffff',
@@ -143,7 +144,7 @@ export function Inspiration({ dark, globalEarnings }) {
           <div style={{ fontSize: 48, fontWeight: 900, color: '#15803d', lineHeight: 1 }}>{daysLeft}</div>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#16a34a' }}>Days remaining</div>
           <div style={{ fontSize: 12, color: '#4ade80' }}>
-            in your year-long journey from today to {new Date(YEAR_END + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+            in your year-long journey from today to {new Date(yearEndDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { generateYearDates, TODAY } from '../data/storage';
+import { generateYearDates } from '../data/storage';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DAYS_LABEL = ['S','M','T','W','T','F','S'];
@@ -14,7 +14,7 @@ function getColor(points, isFuture, isToday, dark) {
   return '#22c55e';
 }
 
-export function YearCalendar({ history, dark }) {
+export function YearCalendar({ history, dark, today }) {
   const [tooltip, setTooltip] = useState(null);
 
   // Build a map of date -> entry
@@ -137,8 +137,8 @@ export function YearCalendar({ history, dark }) {
                   }
 
                   const entry = dataMap[date];
-                  const isFuture = date > TODAY;
-                  const isToday = date === TODAY;
+                  const isFuture = date > today;
+                  const isToday = date === today;
                   const color = getColor(entry?.points, isFuture, isToday, dark);
 
                   return (
