@@ -1,146 +1,197 @@
 /**
- * Storage & Day Management
- * Handles auto-archiving previous days and resetting for new day
+ * HabitForge Storage v2
+ * Clean, reliable, timezone-safe storage with new key prefix to avoid old data conflicts.
  */
 
-/** Get local YYYY-MM-DD date string */
-export function getTodayDate() {
+// ─── Date Helpers ─────────────────────────────────────────────────────────────
+
+/** Returns today's date as 'YYYY-MM-DD' in LOCAL timezone (not UTC) */
+export function getToday() {
   const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return `${y}-${m}-${day}`;
 }
 
-/** Get the start date of tracking — persists first day ever opened */
-export function getYearStartDate() {
-  let start = localStorage.getItem('hf_start_date');
-  if (!start) {
-    start = getTodayDate();
-    localStorage.setItem('hf_start_date', start);
-  }
-  // Try clean JSON parse if it was stored with quotes
-  try {
-    const parsed = JSON.parse(start);
-    if (parsed && typeof parsed === 'string') return parsed;
-  } catch {}
-  return start;
+/** Format any Date object to 'YYYY-MM-DD' local */
+function dateToStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-/** Get the end date of tracking — exactly 1 year from the start date */
-export function getYearEndDate() {
-  const start = getYearStartDate();
+// ─── Storage Keys (v2 prefix avoids old broken data) ─────────────────────────
+
+const K = {
+  start:   'hf2_start',    // plain string 'YYYY-MM-DD' — first day ever opened
+  last:    'hf2_last',     // plain string 'YYYY-MM-DD' — last day app was used
+  tasks:   'hf2_tasks',    // JSON array of task objects
+  history: 'hf2_history',  // JSON array of { date, points, upscHours, earnings, tasksCompleted }
+  dark:    'hf2_dark',     // 'true'|'false'
+  streak:  'hf2_streak',   // plain number string
+};
+
+// ─── Start / End Dates ────────────────────────────────────────────────────────
+
+/** Get or init the first-ever tracking start date (never changes) */
+export function getStartDate() {
+  const stored = localStorage.getItem(K.start);
+  if (stored) return stored;
+  const today = getToday();
+  localStorage.setItem(K.start, today);
+  return today;
+}
+
+/** Returns the date exactly 1 year after the start date */
+export function getEndDate() {
+  const start = getStartDate();
   const d = new Date(start + 'T00:00:00');
   d.setFullYear(d.getFullYear() + 1);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return dateToStr(d);
 }
 
-/** Get stored value safely */
-function get(key, fallback) {
+/** Generate every date from start to end (365 dates) */
+export function generateYearDates() {
+  const dates = [];
+  const cur = new Date(getStartDate() + 'T00:00:00');
+  const end = new Date(getEndDate() + 'T00:00:00');
+  while (cur <= end) {
+    dates.push(dateToStr(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+// ─── Last Date (Day Tracking) ─────────────────────────────────────────────────
+
+export function getLastDate() {
+  return localStorage.getItem(K.last) || null;
+}
+
+export function setLastDate(date) {
+  localStorage.setItem(K.last, date);
+}
+
+// ─── Tasks ────────────────────────────────────────────────────────────────────
+
+export function loadTasks(INITIAL_TASKS) {
   try {
-    const raw = localStorage.getItem(key);
-    return raw !== null ? JSON.parse(raw) : fallback;
-  } catch { return fallback; }
+    const raw = localStorage.getItem(K.tasks);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return INITIAL_TASKS;
 }
 
-/** Set stored value safely */
-export function set(key, val) {
-  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+export function saveTasks(tasks) {
+  localStorage.setItem(K.tasks, JSON.stringify(tasks));
+}
+
+// ─── History ──────────────────────────────────────────────────────────────────
+
+export function loadHistory() {
+  try {
+    const raw = localStorage.getItem(K.history);
+    if (raw) return JSON.parse(raw);
+    // Migrate from old key if exists
+    const old = localStorage.getItem('hf_history');
+    if (old) {
+      const parsed = JSON.parse(old);
+      localStorage.setItem(K.history, JSON.stringify(parsed));
+      return parsed;
+    }
+  } catch {}
+  return [];
 }
 
 /**
- * Check if app is being opened on a new day.
- * If so, archive yesterday's task state to history and clear for today.
+ * Save/update a single day's entry in history.
+ * Always writes the FULL task state for that date.
  */
-export function checkAndAdvanceDay(currentTasks, todayDate) {
-  const lastDate = get('hf_last_date', null);
-  const today = todayDate || getTodayDate();
-
-  if (lastDate && lastDate !== today) {
-    // A new day has started — archive yesterday's data
-    const history = get('hf_history', []);
-    const existingIdx = history.findIndex(h => h.date === lastDate);
-
-    const totalPoints = currentTasks.reduce((s, t) => s + (t.pointsEarned || 0), 0);
-    const upscTask = currentTasks.find(t => t.id === 'upsc');
-    const earningTask = currentTasks.find(t => t.id === 'earning');
-
-    const entry = {
-      date: lastDate,
-      points: totalPoints,
-      upscHours: upscTask ? Number(upscTask.inputValue || 0) : 0,
-      earnings: earningTask ? Number(earningTask.inputValue || 0) : 0,
-      tasksCompleted: currentTasks.filter(t => t.completed).length,
-    };
-
-    if (existingIdx >= 0) {
-      history[existingIdx] = entry;
-    } else {
-      history.push(entry);
-    }
-
-    set('hf_history', history);
-    set('hf_last_date', today);
-    return { advanced: true, archivedDate: lastDate };
-  }
-
-  if (!lastDate) {
-    set('hf_last_date', today);
-  }
-
-  return { advanced: false };
-}
-
-/** Load history — only real logged data */
-export function loadHistory() {
-  return get('hf_history', []);
-}
-
-/** Save today's completed task data to history */
-export function saveToday(tasks, todayDate) {
-  const today = todayDate || getTodayDate();
-  const history = get('hf_history', []);
-  const totalPoints = tasks.reduce((s, t) => s + (t.pointsEarned || 0), 0);
-  const upscTask = tasks.find(t => t.id === 'upsc');
+export function saveToHistory(date, tasks) {
+  const history = loadHistory();
   const earningTask = tasks.find(t => t.id === 'earning');
+  const upscTask = tasks.find(t => t.id === 'upsc');
 
   const entry = {
-    date: today,
-    points: totalPoints,
+    date,
+    points: tasks.reduce((s, t) => s + (t.pointsEarned || 0), 0),
     upscHours: upscTask ? Number(upscTask.inputValue || 0) : 0,
-    earnings: earningTask ? Number(earningTask.inputValue || 0) : 0,
+    // Only count earnings when the task is actually checked
+    earnings: (earningTask && earningTask.completed)
+      ? Number(earningTask.inputValue || 0)
+      : 0,
     tasksCompleted: tasks.filter(t => t.completed).length,
   };
 
-  const existingIdx = history.findIndex(h => h.date === today);
-  if (existingIdx >= 0) {
-    history[existingIdx] = entry;
+  const idx = history.findIndex(h => h.date === date);
+  if (idx >= 0) {
+    history[idx] = entry;
   } else {
     history.push(entry);
   }
-
-  set('hf_history', history);
+  localStorage.setItem(K.history, JSON.stringify(history));
+  return history;
 }
 
-/** Generate all dates from start date to end date for the calendar */
-export function generateYearDates() {
-  const dates = [];
-  const startStr = getYearStartDate();
-  const endStr = getYearEndDate();
-  
-  const cur = new Date(startStr + 'T00:00:00');
-  const end = new Date(endStr + 'T00:00:00');
+// ─── Earnings ─────────────────────────────────────────────────────────────────
 
-  while (cur <= end) {
-    const year = cur.getFullYear();
-    const month = String(cur.getMonth() + 1).padStart(2, '0');
-    const day = String(cur.getDate()).padStart(2, '0');
-    dates.push(`${year}-${month}-${day}`);
-    cur.setDate(cur.getDate() + 1);
+/**
+ * Compute total earnings directly from history (single source of truth).
+ * No separate counter — this is always accurate.
+ */
+export function computeTotalEarnings(history) {
+  return history.reduce((s, h) => s + (h.earnings || 0), 0);
+}
+
+// ─── Super Streak ─────────────────────────────────────────────────────────────
+
+export function loadStreak() {
+  const v = localStorage.getItem(K.streak);
+  return v !== null ? Number(v) : 0;
+}
+
+export function saveStreak(n) {
+  localStorage.setItem(K.streak, String(n));
+}
+
+// ─── Dark Mode ────────────────────────────────────────────────────────────────
+
+export function loadDark() {
+  return localStorage.getItem(K.dark) === 'true';
+}
+
+export function saveDark(val) {
+  localStorage.setItem(K.dark, val ? 'true' : 'false');
+}
+
+// ─── Day Advance ─────────────────────────────────────────────────────────────
+
+/**
+ * Call this on app load (and whenever the date changes).
+ * If the stored last-date differs from today:
+ *   1. Archives yesterday's tasks to history
+ *   2. Updates last-date to today
+ *   3. Returns { advanced: true }
+ * Otherwise returns { advanced: false }
+ */
+export function checkAndAdvanceDay(currentTasks) {
+  const today = getToday();
+  const last = getLastDate();
+
+  if (!last) {
+    // First ever open
+    setLastDate(today);
+    return { advanced: false };
   }
 
-  return dates;
+  if (last !== today) {
+    // New day — archive yesterday
+    saveToHistory(last, currentTasks);
+    setLastDate(today);
+    return { advanced: true, archivedDate: last };
+  }
+
+  return { advanced: false };
 }

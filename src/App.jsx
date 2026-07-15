@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Sun, Moon } from 'lucide-react';
+import { Sun, Moon, CheckCircle2 } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { Analytics } from './components/Analytics';
 import { Inspiration } from './components/Inspiration';
@@ -7,20 +7,19 @@ import { YearCalendar } from './components/YearCalendar';
 import { TodayPage } from './pages/TodayPage';
 import { INITIAL_TASKS } from './data/tasks';
 import {
-  getTodayDate, checkAndAdvanceDay, loadHistory, saveToday, set
+  getToday, getEndDate,
+  getLastDate, setLastDate,
+  loadTasks, saveTasks,
+  loadHistory, saveToHistory, computeTotalEarnings,
+  loadStreak, saveStreak,
+  loadDark, saveDark,
+  checkAndAdvanceDay, generateYearDates,
 } from './data/storage';
 
-function SettingsPage({ dark, onToggleDark, superStreak, setSuperStreak, globalEarnings, setGlobalEarnings, onClearData }) {
-  const [showConfirm, setShowConfirm] = useState(false);
+// ─── Settings Page ─────────────────────────────────────────────────────────────
 
-  const inputStyle = {
-    padding: '8px 12px', borderRadius: 8,
-    border: `1px solid ${dark ? '#475569' : '#e2e8f0'}`,
-    background: dark ? '#334155' : '#f8faff',
-    color: dark ? '#f1f5f9' : '#1e293b',
-    fontWeight: 700, outline: 'none', fontSize: 14,
-    width: 140,
-  };
+function SettingsPage({ dark, onToggleDark, superStreak, setSuperStreak, onClearData }) {
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const cardStyle = {
     background: dark ? '#1e293b' : '#ffffff',
@@ -32,13 +31,10 @@ function SettingsPage({ dark, onToggleDark, superStreak, setSuperStreak, globalE
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <div>
-        <h2 style={{ fontWeight: 900, fontSize: 26, color: dark ? '#f1f5f9' : '#1e293b', margin: 0, letterSpacing: '-0.5px' }}>
-          Settings ⚙️
-        </h2>
+        <h2 style={{ fontWeight: 900, fontSize: 26, color: dark ? '#f1f5f9' : '#1e293b', margin: 0 }}>Settings ⚙️</h2>
         <p style={{ color: '#94a3b8', fontSize: 14, margin: '4px 0 0' }}>Customize your HabitForge experience</p>
       </div>
 
-      {/* Appearance */}
       <div style={cardStyle}>
         <h3 style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '1.5px' }}>Appearance</h3>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -49,51 +45,43 @@ function SettingsPage({ dark, onToggleDark, superStreak, setSuperStreak, globalE
           <button onClick={onToggleDark} style={{
             width: 50, height: 28, borderRadius: 99,
             background: dark ? '#6366f1' : '#e2e8f0',
-            border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.3s ease',
+            border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.3s',
           }}>
             <div style={{
               position: 'absolute', width: 20, height: 20, borderRadius: '50%',
               background: 'white', top: 4, left: dark ? 26 : 4,
-              transition: 'left 0.3s ease', boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              transition: 'left 0.3s', boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
             }} />
           </button>
         </div>
       </div>
 
-      {/* Data */}
       <div style={cardStyle}>
-        <h3 style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '1.5px' }}>Data</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {[
-            {
-              label: 'Global Earnings (₹)',
-              desc: 'Set your cumulative total earned towards ₹2L goal',
-              control: <input type="number" min="0" value={globalEarnings} onChange={e => { const v = Number(e.target.value); setGlobalEarnings(v); set('hf_earnings', v); }} style={inputStyle} />
-            },
-            {
-              label: 'Super Streak',
-              desc: 'Manually correct your super streak count',
-              control: <input type="number" min="0" value={superStreak} onChange={e => { const v = Number(e.target.value); setSuperStreak(v); set('hf_super_streak', v); }} style={{ ...inputStyle, width: 100 }} />
-            }
-          ].map((item, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 15, color: dark ? '#f1f5f9' : '#1e293b' }}>{item.label}</div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{item.desc}</div>
-              </div>
-              {item.control}
-            </div>
-          ))}
+        <h3 style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '1.5px' }}>Super Streak</h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 15, color: dark ? '#f1f5f9' : '#1e293b' }}>Current: {superStreak} days</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>Manually correct if needed</div>
+          </div>
+          <input type="number" min="0" value={superStreak}
+            onChange={e => { const v = Number(e.target.value); setSuperStreak(v); saveStreak(v); }}
+            style={{
+              width: 80, padding: '8px 12px', borderRadius: 8,
+              border: `1px solid ${dark ? '#475569' : '#e2e8f0'}`,
+              background: dark ? '#334155' : '#f8faff',
+              color: dark ? '#f1f5f9' : '#1e293b',
+              fontWeight: 700, fontSize: 14, outline: 'none',
+            }}
+          />
         </div>
       </div>
 
-      {/* Danger Zone */}
       <div style={{ ...cardStyle, border: `1px solid ${dark ? '#7f1d1d' : '#fecaca'}`, background: dark ? '#1e293b' : '#fff5f5' }}>
         <h3 style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', margin: '0 0 18px', textTransform: 'uppercase', letterSpacing: '1.5px' }}>Danger Zone</h3>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontWeight: 600, fontSize: 15, color: dark ? '#f1f5f9' : '#1e293b' }}>Reset All Data</div>
-            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>Clear all history, streaks, earnings — start from zero</div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>Clear everything and start fresh from zero</div>
           </div>
           {!showConfirm ? (
             <button onClick={() => setShowConfirm(true)} style={{
@@ -107,7 +95,8 @@ function SettingsPage({ dark, onToggleDark, superStreak, setSuperStreak, globalE
                 background: '#ef4444', color: 'white', cursor: 'pointer', fontWeight: 700, fontSize: 13,
               }}>Confirm</button>
               <button onClick={() => setShowConfirm(false)} style={{
-                padding: '8px 16px', borderRadius: 10, border: `1px solid ${dark ? '#475569' : '#e2e8f0'}`,
+                padding: '8px 16px', borderRadius: 10,
+                border: `1px solid ${dark ? '#475569' : '#e2e8f0'}`,
                 background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: 700, fontSize: 13,
               }}>Cancel</button>
             </div>
@@ -118,109 +107,90 @@ function SettingsPage({ dark, onToggleDark, superStreak, setSuperStreak, globalE
   );
 }
 
+// ─── Main App ─────────────────────────────────────────────────────────────────
+
 export default function App() {
-  const [dark, setDark] = useState(() => localStorage.getItem('hf_dark') === 'true');
+  const [dark, setDark] = useState(() => loadDark());
   const [active, setActive] = useState('today');
-  const [today, setToday] = useState(() => getTodayDate());
+  const [today, setToday] = useState(() => getToday());
 
-  // Load tasks from storage — but check if day has advanced first
+  // ── Tasks state ──────────────────────────────────────────────────────────────
   const [tasks, setTasksRaw] = useState(() => {
-    const savedTasks = (() => {
-      try {
-        const s = localStorage.getItem('hf_tasks_v3');
-        return s ? JSON.parse(s) : null;
-      } catch { return null; }
-    })();
-
-    // Check if we're on a new day
-    const todayStr = getTodayDate();
-    const { advanced } = checkAndAdvanceDay(savedTasks || INITIAL_TASKS, todayStr);
+    const saved = loadTasks(INITIAL_TASKS);
+    const { advanced } = checkAndAdvanceDay(saved);
     if (advanced) {
-      // New day — reset tasks but keep streaks
       const reset = INITIAL_TASKS.map((init, i) => ({
         ...init,
-        streak: savedTasks?.[i]?.streak || 0,
+        streak: saved[i]?.streak || 0,
       }));
-      localStorage.setItem('hf_tasks_v3', JSON.stringify(reset));
+      saveTasks(reset);
       return reset;
     }
-    return savedTasks || INITIAL_TASKS;
+    return saved;
   });
 
-  const [superStreak, setSuperStreak] = useState(() => {
-    const v = localStorage.getItem('hf_super_streak');
-    return v !== null ? Number(v) : 0;
-  });
+  // ── Super Streak ─────────────────────────────────────────────────────────────
+  const [superStreak, setSuperStreak] = useState(() => loadStreak());
 
-  const [globalEarnings, setGlobalEarnings] = useState(() => {
-    const v = localStorage.getItem('hf_earnings');
-    return v !== null ? Number(v) : 0;
-  });
-
+  // ── History ──────────────────────────────────────────────────────────────────
   const [history, setHistory] = useState(() => loadHistory());
 
-  // Setters that also persist
+  // ── Derived: earnings always from history ─────────────────────────────────────
+  const globalEarnings = useMemo(() => computeTotalEarnings(history), [history]);
+
+  // ── Persist tasks + save to history on every change ──────────────────────────
   const setTasks = useCallback((updater) => {
     setTasksRaw(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      localStorage.setItem('hf_tasks_v3', JSON.stringify(next));
-      const curToday = getTodayDate();
-      saveToday(next, curToday); // auto-save today's data to history
-      setHistory(loadHistory()); // refresh history
+      saveTasks(next);
+      const newHistory = saveToHistory(getToday(), next);
+      setHistory(newHistory);
       return next;
     });
   }, []);
 
-  // Listen to tab visibility and focus to update date, and set interval
+  // ── Listen for day change (focus, visibility, interval) ──────────────────────
   useEffect(() => {
-    const updateToday = () => {
-      const cur = getTodayDate();
-      setToday(prev => {
-        if (prev !== cur) {
-          setTasksRaw(prevTasks => {
-            const { advanced } = checkAndAdvanceDay(prevTasks, cur);
-            if (advanced) {
-              const reset = INITIAL_TASKS.map((init, i) => ({
-                ...init,
-                streak: prevTasks?.[i]?.streak || 0,
-              }));
-              localStorage.setItem('hf_tasks_v3', JSON.stringify(reset));
-              saveToday(reset, cur);
-              setHistory(loadHistory());
-              return reset;
-            }
-            return prevTasks;
-          });
-          return cur;
-        }
-        return prev;
-      });
+    const checkDay = () => {
+      const cur = getToday();
+      if (cur !== today) {
+        setToday(cur);
+        setTasksRaw(prev => {
+          const { advanced } = checkAndAdvanceDay(prev);
+          if (advanced) {
+            const reset = INITIAL_TASKS.map((init, i) => ({
+              ...init,
+              streak: prev[i]?.streak || 0,
+            }));
+            saveTasks(reset);
+            const newHistory = loadHistory();
+            setHistory(newHistory);
+            return reset;
+          }
+          return prev;
+        });
+      }
     };
 
-    // Run once
-    updateToday();
-
-    // Listeners
-    window.addEventListener('focus', updateToday);
-    document.addEventListener('visibilitychange', updateToday);
-
-    // Check every 30 seconds
-    const interval = setInterval(updateToday, 30000);
-
+    window.addEventListener('focus', checkDay);
+    document.addEventListener('visibilitychange', checkDay);
+    const interval = setInterval(checkDay, 30000);
     return () => {
-      window.removeEventListener('focus', updateToday);
-      document.removeEventListener('visibilitychange', updateToday);
+      window.removeEventListener('focus', checkDay);
+      document.removeEventListener('visibilitychange', checkDay);
       clearInterval(interval);
     };
-  }, [tasks]);
+  }, [today]);
 
-  // Theme
+  // ── Theme ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     document.body.className = dark ? 'dark' : '';
-    localStorage.setItem('hf_dark', dark);
+    saveDark(dark);
   }, [dark]);
 
   const totalPoints = useMemo(() => tasks.reduce((s, t) => s + t.pointsEarned, 0), [tasks]);
+
+  // ── Handlers ─────────────────────────────────────────────────────────────────
 
   const handleToggle = useCallback((id) => {
     setTasks(prev => {
@@ -233,14 +203,6 @@ export default function App() {
           if (t.id === 'upsc') pts += Math.min(Number(t.inputValue || 0), 5);
           if (t.id === 'tech') pts += (t.stars || 0);
         }
-        if (t.id === 'earning') {
-          const earned = Number(t.inputValue || 0);
-          setGlobalEarnings(e => {
-            const next = completing ? (e + earned) : Math.max(0, e - earned);
-            localStorage.setItem('hf_earnings', next);
-            return next;
-          });
-        }
         return {
           ...t,
           completed: completing,
@@ -249,16 +211,11 @@ export default function App() {
         };
       });
 
-      // Super Streak — if 4+ tasks completed today, bump it
-      const completedCount = updated.filter(t => t.completed).length;
-      const prevCompleted = prev.filter(t => t.completed).length;
-      // Only bump if we just crossed the 4-task threshold
-      if (completedCount >= 4 && prevCompleted < 4) {
-        setSuperStreak(s => {
-          const next = s + 1;
-          localStorage.setItem('hf_super_streak', next);
-          return next;
-        });
+      // Super streak — bump when crossing 4-habit threshold
+      const completedNow = updated.filter(t => t.completed).length;
+      const completedBefore = prev.filter(t => t.completed).length;
+      if (completedNow >= 4 && completedBefore < 4) {
+        setSuperStreak(s => { const n = s + 1; saveStreak(n); return n; });
       }
 
       return updated;
@@ -269,18 +226,8 @@ export default function App() {
     setTasks(prev => prev.map(t => {
       if (t.id !== id) return t;
       let pts = t.completed ? t.basePoints : 0;
-      if (t.completed && t.id === 'upsc') {
-        pts += Math.min(Number(val || 0), 5);
-      }
-      if (t.completed && t.id === 'earning') {
-        const oldVal = Number(t.inputValue || 0);
-        const newVal = Number(val || 0);
-        setGlobalEarnings(e => {
-          const next = e - oldVal + newVal;
-          localStorage.setItem('hf_earnings', next);
-          return next;
-        });
-      }
+      if (t.completed && t.id === 'upsc') pts += Math.min(Number(val || 0), 5);
+      // Earnings: points don't change, but inputValue is saved → history picks it up
       return { ...t, inputValue: val, pointsEarned: Math.min(pts, t.maxPoints) };
     }));
   }, [setTasks]);
@@ -293,40 +240,48 @@ export default function App() {
     }));
   }, [setTasks]);
 
+  /** Manual "Finish Today & Reset" — saves current state and resets tasks */
+  const handleFinishDay = useCallback(() => {
+    const cur = getToday();
+    saveToHistory(cur, tasks);
+    setLastDate(cur);
+    const reset = INITIAL_TASKS.map((init, i) => ({
+      ...init,
+      streak: tasks[i]?.streak || 0,
+    }));
+    saveTasks(reset);
+    setTasksRaw(reset);
+    setHistory(loadHistory());
+  }, [tasks]);
+
   const handleClearData = () => {
-    localStorage.clear();
+    // Clear v2 keys only
+    ['hf2_start','hf2_last','hf2_tasks','hf2_history','hf2_dark','hf2_streak'].forEach(k => localStorage.removeItem(k));
     window.location.reload();
   };
+
+  // ─── UI ──────────────────────────────────────────────────────────────────────
 
   const bg = dark ? '#0f172a' : '#f0f4ff';
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: bg, transition: 'background 0.3s ease' }}>
       {/* Left Sidebar */}
-      <Sidebar
-        active={active}
-        setActive={setActive}
-        points={totalPoints}
-        superStreak={superStreak}
-        dark={dark}
-      />
+      <Sidebar active={active} setActive={setActive} points={totalPoints} superStreak={superStreak} dark={dark} />
 
       {/* Main Content */}
       <main style={{ marginLeft: 240, flex: 1, padding: '28px 28px 28px 32px', minWidth: 0 }}>
         {/* Top bar */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
-          <button
-            onClick={() => setDark(d => !d)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 8,
-              padding: '8px 18px', borderRadius: 10,
-              border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`,
-              background: dark ? '#1e293b' : 'white',
-              cursor: 'pointer', fontWeight: 600, fontSize: 13,
-              color: dark ? '#f1f5f9' : '#475569',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-            }}
-          >
+          <button onClick={() => setDark(d => !d)} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 18px', borderRadius: 10,
+            border: `1px solid ${dark ? '#334155' : '#e2e8f0'}`,
+            background: dark ? '#1e293b' : 'white',
+            cursor: 'pointer', fontWeight: 600, fontSize: 13,
+            color: dark ? '#f1f5f9' : '#475569',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+          }}>
             {dark ? <Sun size={14} color="#fbbf24" /> : <Moon size={14} color="#6366f1" />}
             {dark ? 'Light Mode' : 'Dark Mode'}
           </button>
@@ -343,6 +298,7 @@ export default function App() {
             superStreak={superStreak}
             dark={dark}
             today={today}
+            onFinishDay={handleFinishDay}
           />
         )}
         {active === 'analytics' && <Analytics history={history} dark={dark} />}
@@ -353,29 +309,16 @@ export default function App() {
             onToggleDark={() => setDark(d => !d)}
             superStreak={superStreak}
             setSuperStreak={setSuperStreak}
-            globalEarnings={globalEarnings}
-            setGlobalEarnings={setGlobalEarnings}
             onClearData={handleClearData}
           />
         )}
       </main>
 
       {/* Right Calendar Panel */}
-      <div style={{
-        width: 320,
-        padding: '28px 20px 28px 0',
-        flexShrink: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16,
-      }}>
+      <div style={{ width: 320, padding: '28px 20px 28px 0', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ marginBottom: 8, marginTop: 52 }}>
-          <h3 style={{ fontWeight: 800, fontSize: 16, color: dark ? '#f1f5f9' : '#1e293b', margin: 0 }}>
-            Year Progress 🗓️
-          </h3>
-          <p style={{ fontSize: 11, color: '#94a3b8', margin: '3px 0 0' }}>
-            Today → Next year · Hover a day for details
-          </p>
+          <h3 style={{ fontWeight: 800, fontSize: 16, color: dark ? '#f1f5f9' : '#1e293b', margin: 0 }}>Year Progress 🗓️</h3>
+          <p style={{ fontSize: 11, color: '#94a3b8', margin: '3px 0 0' }}>Hover a day for details · Colors = points scored</p>
         </div>
         <YearCalendar history={history} dark={dark} today={today} />
 
@@ -387,24 +330,22 @@ export default function App() {
           boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         }}>
           <h4 style={{ fontWeight: 700, fontSize: 13, color: dark ? '#f1f5f9' : '#1e293b', margin: '0 0 14px' }}>
-            This Month's Activity
+            This Month
           </h4>
           {(() => {
-            const thisMonth = new Date().toISOString().slice(0, 7);
-            const monthData = history.filter(h => h.date.startsWith(thisMonth));
-            const daysLogged = monthData.length;
-            const avgPts = daysLogged > 0 ? Math.round(monthData.reduce((s, h) => s + h.points, 0) / daysLogged) : 0;
-            const perfectDays = monthData.filter(h => h.points >= 40).length;
+            const thisMonth = today.slice(0, 7);
+            const md = history.filter(h => h.date.startsWith(thisMonth));
+            const avg = md.length > 0 ? Math.round(md.reduce((s, h) => s + h.points, 0) / md.length) : 0;
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {[
-                  { label: 'Days logged', value: daysLogged, color: '#6366f1' },
-                  { label: 'Avg score', value: daysLogged > 0 ? `${avgPts}/50` : '—', color: '#f59e0b' },
-                  { label: 'Perfect days (40+)', value: perfectDays, color: '#22c55e' },
-                ].map((stat, i) => (
+                  { label: 'Days logged', value: md.length, color: '#6366f1' },
+                  { label: 'Avg score', value: md.length > 0 ? `${avg}/50` : '—', color: '#f59e0b' },
+                  { label: 'Perfect (40+ pts)', value: md.filter(h => h.points >= 40).length, color: '#22c55e' },
+                ].map((s, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>{stat.label}</span>
-                    <span style={{ fontSize: 14, fontWeight: 800, color: stat.color }}>{stat.value}</span>
+                    <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 500 }}>{s.label}</span>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: s.color }}>{s.value}</span>
                   </div>
                 ))}
               </div>
@@ -412,7 +353,7 @@ export default function App() {
           })()}
         </div>
 
-        {/* Today card */}
+        {/* Today's points card */}
         <div style={{
           borderRadius: 16, overflow: 'hidden',
           background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
@@ -433,7 +374,7 @@ export default function App() {
             }} />
           </div>
           <div style={{ marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.75)', fontWeight: 600 }}>
-            {tasks.filter(t => t.completed).length}/5 habits completed
+            {tasks.filter(t => t.completed).length}/5 habits done
           </div>
         </div>
       </div>

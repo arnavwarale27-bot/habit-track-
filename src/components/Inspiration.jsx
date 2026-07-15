@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getYearEndDate } from '../data/storage';
+import { getEndDate } from '../data/storage';
 import { RefreshCw, Heart, Target } from 'lucide-react';
 
 const QUOTES = [
@@ -39,7 +39,7 @@ export function Inspiration({ dark, globalEarnings, today }) {
   const [affIdx, setAffIdx] = useState(0);
 
   // Days remaining to year end
-  const yearEndDate = getYearEndDate();
+  const yearEndDate = getEndDate();
   const yearEnd = new Date(yearEndDate + 'T00:00:00');
   const daysLeft = Math.ceil((yearEnd - todayObj) / 86400000);
 

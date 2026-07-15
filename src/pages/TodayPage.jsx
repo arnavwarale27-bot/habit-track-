@@ -28,7 +28,9 @@ function StatCard({ icon: Icon, label, value, sub, color, bg, dark }) {
   );
 }
 
-export function TodayPage({ tasks, onToggle, onUpdateInput, onUpdateStars, globalEarnings, superStreak, dark, today }) {
+export function TodayPage({ tasks, onToggle, onUpdateInput, onUpdateStars, globalEarnings, superStreak, dark, today, onFinishDay }) {
+  const [showFinishConfirm, setShowFinishConfirm] = React.useState(false);
+  const [finished, setFinished] = React.useState(false);
   const totalPoints = useMemo(() => tasks.reduce((s, t) => s + t.pointsEarned, 0), [tasks]);
   const completedCount = tasks.filter(t => t.completed).length;
   const MILESTONE = 200000;
@@ -198,6 +200,87 @@ export function TodayPage({ tasks, onToggle, onUpdateInput, onUpdateStars, globa
           </div>
         </div>
       )}
+
+      {/* ── Manual Day Finish Button ── */}
+      <div style={{
+        background: dark ? '#1e293b' : '#ffffff',
+        border: `1.5px dashed ${dark ? '#334155' : '#c7d2fe'}`,
+        borderRadius: 18, padding: '22px 24px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+          <span style={{ fontSize: 24 }}>📅</span>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 15, color: dark ? '#f1f5f9' : '#1e293b' }}>
+              Done for today?
+            </div>
+            <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+              Save your progress & reset habits for tomorrow. Use this if tasks don't auto-reset.
+            </div>
+          </div>
+        </div>
+
+        {finished ? (
+          <div style={{
+            background: '#f0fdf4', border: '1px solid #bbf7d0',
+            borderRadius: 12, padding: '14px 18px',
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            <span style={{ fontSize: 22 }}>✅</span>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#15803d' }}>
+              Saved! Habits reset for tomorrow. See you then 🚀
+            </div>
+          </div>
+        ) : !showFinishConfirm ? (
+          <button
+            onClick={() => setShowFinishConfirm(true)}
+            style={{
+              width: '100%', padding: '14px',
+              borderRadius: 12, border: 'none',
+              background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+              color: 'white', fontWeight: 800, fontSize: 15,
+              cursor: 'pointer',
+              boxShadow: '0 4px 16px rgba(99,102,241,0.3)',
+              transition: 'transform 0.2s, box-shadow 0.2s',
+            }}
+            onMouseOver={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+            onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
+          >
+            ✅ Save Today & Reset for Tomorrow
+          </button>
+        ) : (
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={() => {
+                onFinishDay();
+                setFinished(true);
+                setShowFinishConfirm(false);
+                setTimeout(() => setFinished(false), 4000);
+              }}
+              style={{
+                flex: 1, padding: '12px',
+                borderRadius: 12, border: 'none',
+                background: '#22c55e', color: 'white',
+                fontWeight: 800, fontSize: 14, cursor: 'pointer',
+              }}
+            >
+              Yes, Save & Reset ✓
+            </button>
+            <button
+              onClick={() => setShowFinishConfirm(false)}
+              style={{
+                flex: 1, padding: '12px',
+                borderRadius: 12,
+                border: `1px solid ${dark ? '#475569' : '#e2e8f0'}`,
+                background: 'transparent',
+                color: '#94a3b8', fontWeight: 700, fontSize: 14, cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
